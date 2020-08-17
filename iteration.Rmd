@@ -45,25 +45,6 @@ base::options(
   max.print = 999999,
   scipen = 100000000
 )
-
-# nyt1 <- read_csv("data/dds_ch2_nyt/nyt1.csv")
-# nyt1 <- nyt1 %>% dplyr::slice_sample(n = 100)
-# readr::write_csv(x = nyt1, path = "data/dds_ch2_nyt/nyt1.csv")
-# nyt2 <- read_csv("data/dds_ch2_nyt/nyt2.csv")
-# nyt2 <- nyt2 %>% dplyr::slice_sample(n = 75)
-# readr::write_csv(x = nyt2, path = "data/dds_ch2_nyt/nyt2.csv")
-# nyt3 <- read_csv("data/dds_ch2_nyt/nyt3.csv")
-# nyt3 <- nyt3 %>% dplyr::slice_sample(n = 85)
-# readr::write_csv(x = nyt3, path = "data/dds_ch2_nyt/nyt3.csv")
-# nyt4 <- read_csv("data/dds_ch2_nyt/nyt4.csv")
-# nyt4 <- nyt4 %>% dplyr::slice_sample(n = 85)
-# readr::write_csv(x = nyt4, path = "data/dds_ch2_nyt/nyt4.csv")
-# nyt5 <- read_csv("data/dds_ch2_nyt/nyt5.csv")
-# nyt5 <- nyt5 %>% dplyr::slice_sample(n = 50)
-# readr::write_csv(x = nyt5, path = "data/dds_ch2_nyt/nyt5.csv")
-# csv_files <- fs::dir_ls(path = "data/dds_ch2_nyt", glob = "*.csv")
-# nyt_csv_list <- purrr::map(.x = csv_files, .f = read_csv)
-# readr::write_rds(x = nyt_csv_list, path = "data/nyt_csv_list.rds")
 ```
 
 # Motivation
