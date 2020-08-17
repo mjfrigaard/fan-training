@@ -1,0 +1,214 @@
+---
+title: "Advanced iteration examples"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 6
+    
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(tidyverse)
+library(devtools)
+# figs folder
+fs::dir_create("figs")
+# data folder
+fs::dir_create("data")
+# docs folder
+fs::dir_create("docs")
+# chunk options
+knitr::opts_chunk$set(
+  echo = TRUE, # show/hide all code
+  tidy = FALSE, # cleaner code printing
+  comment = "#> ", # better console printing
+  eval = TRUE, # turn this to FALSE stop code chunks from running
+  message = TRUE, # show messages
+  warning = FALSE, # show warnings
+  size = "small", # size of the text
+  fig.path = "figs/", # location of files
+  fig.height = 5.5, # height of figures
+  fig.width = 8 # width of figures
+)
+# knit options
+knitr::opts_knit$set(
+  width = 78,
+  progress = FALSE
+)
+# base options
+base::options(
+  tibble.print_max = 25,
+  tibble.width = 78,
+  max.print = 999999,
+  scipen = 100000000
+)
+
+# nyt1 <- read_csv("data/dds_ch2_nyt/nyt1.csv")
+# nyt1 <- nyt1 %>% dplyr::slice_sample(n = 100)
+# readr::write_csv(x = nyt1, path = "data/dds_ch2_nyt/nyt1.csv")
+# nyt2 <- read_csv("data/dds_ch2_nyt/nyt2.csv")
+# nyt2 <- nyt2 %>% dplyr::slice_sample(n = 75)
+# readr::write_csv(x = nyt2, path = "data/dds_ch2_nyt/nyt2.csv")
+# nyt3 <- read_csv("data/dds_ch2_nyt/nyt3.csv")
+# nyt3 <- nyt3 %>% dplyr::slice_sample(n = 85)
+# readr::write_csv(x = nyt3, path = "data/dds_ch2_nyt/nyt3.csv")
+# nyt4 <- read_csv("data/dds_ch2_nyt/nyt4.csv")
+# nyt4 <- nyt4 %>% dplyr::slice_sample(n = 85)
+# readr::write_csv(x = nyt4, path = "data/dds_ch2_nyt/nyt4.csv")
+# nyt5 <- read_csv("data/dds_ch2_nyt/nyt5.csv")
+# nyt5 <- nyt5 %>% dplyr::slice_sample(n = 50)
+# readr::write_csv(x = nyt5, path = "data/dds_ch2_nyt/nyt5.csv")
+# csv_files <- fs::dir_ls(path = "data/dds_ch2_nyt", glob = "*.csv")
+# nyt_csv_list <- purrr::map(.x = csv_files, .f = read_csv)
+# readr::write_rds(x = nyt_csv_list, path = "data/nyt_csv_list.rds")
+```
+
+
+
+## Importing multiple .csv files
+
+Consider this example , where we have multiple .csv files in the `data` folder. All of these files are similar (same column names, but different numbers of rows) and we want them all loaded into our RStudio environment.
+
+```{r dds_ch2_nyt}
+fs::dir_tree("data")
+```
+
+Assuming we've imported a single file and discovered some wrangling that needs to be done for each file. We've packages these wrangling steps into a custom function called `clean_nyt_data`.
+
+```{r clean_nyt, message=FALSE}
+clean_nyt <- function(file) {
+                    nyt <- read_csv(file)
+                    nyt %>%
+                    dplyr::mutate(
+                        age_group = case_when( # create age_group variable
+                                        Age < 18 ~ "<18",
+                            Age >= 18 & Age < 25 ~ "18-24",
+                            Age >= 25 & Age < 35 ~ "25-34",
+                            Age >= 35 & Age < 45 ~ "35-44",
+                            Age >= 45 & Age < 55 ~ "45-54",
+                            Age >= 55 & Age < 65 ~ "55-64",
+                            Age >= 65 ~ "65+"),
+                        CTR = Clicks/Impressions, # create CTR variable
+                        Female = case_when( # create new Female variable
+                                Gender == 0 ~ "Male",
+                                Gender == 1 ~ "Female",
+                    TRUE ~ as.character(Gender)))
+}
+# test this on single file,
+clean_nyt("data/dds_ch2_nyt/nyt1.csv") %>% head()
+```
+
+Ok, now we want to combine our cleaning and importing into a single for loop to iterate through each .csv file. This takes the following steps,
+
+1. Build a file path to each .csv
+
+```{r nyt_files}
+# build a vector of files
+nyt_files <- base::dir("data/dds_ch2_nyt")
+nyt_files <- base::paste0("data/", "dds_ch2_nyt/", nyt_files)
+glimpse(nyt_files)
+```
+
+2. Construct a `for loop` that iterates over each file, imports it, and adds the `id` column so we can keep track of each file origin.
+
+```{r nyt_data-for-loop, message=FALSE, warning=FALSE}
+# Build my_nyt_data with a for loop
+my_nyt_data <- NULL
+for (file in nyt_files) { # for every file in nyt_files...
+    # wrangle with clean_nyt()
+    temp <- clean_nyt(file)  
+    # add an id column (but remove .csv)
+    temp$id <- sub(".csv", "", file)
+     # then stick together by rows
+    my_nyt_data <- rbind(my_nyt_data, temp)
+}
+my_nyt_data %>% glimpse()
+```
+
+Now when we check the output of the `for loop`, we should have 5 different `id`s.
+
+```{r count-ids}
+unique(my_nyt_data$id) %>% length()
+```
+
+We could also do the same thing with a `list`,  and might look like this,
+
+1. put the files in a list
+
+```{r nyt_files_list}
+files <- as.list(x = nyt_files) %>% purrr::set_names()
+# get path to files and store in list
+nyt_files_list <- files
+# check the length
+length(nyt_files_list)
+```
+
+2. Construct the `for loop` to import the files in `nyt_files_list`, with some minor changes like `seq_along()` and bracket subsetting.
+
+```{r for-loop, message=FALSE}
+# the for loop for all of the items in the files list
+for (i in seq_along(files)) {
+    # apply read_csv to all the items in files
+  nyt_files_list[[i]] <- readr::read_csv(file = files[[i]])
+
+}
+```
+
+
+
+The number of imported files is contained in the file names.
+
+```{r head-nyt1.csv}
+head(nyt_files_list$`data/dds_ch2_nyt/nyt1.csv`)
+```
+
+### Using map
+
+The basic method for `purrr` map is,
+
+1. Do it for one element  
+2. Turn it into a recipe   
+3. Use `map()` to do it for all elements   
+
+So the obvious 'do it for one' here to import and wrangle the data (which we have done above with `clean_nyt`). So the recipe is,
+
+```r
+ ~ clean_nyt( .x$`data/dds_ch2_nyt/nyt1.csv`)
+```
+
+First we'll store the files in a `fs_path` from the `fs` package. These are great for keeping track of files.
+
+```{r dir_ls-csv_files}
+csv_files <- fs::dir_ls(path = "data/dds_ch2_nyt", glob = "*.csv")
+str(csv_files)
+```
+
+Using `map`, this would look like so,
+
+```{r}
+csv_files <- fs::dir_ls(path = "data/dds_ch2_nyt", glob = "*.csv")
+nyt_csv_list_map <- purrr::map(.x = csv_files, .f = read_csv)
+```
+
+
+Below is a list with a small sample of data.frames from [Doing Data Science](https://www.oreilly.com/library/view/doing-data-science/9781449363871/). The information on these data is provided below,
+
+> Each dataset represents one (simulated) day’s worth of ads shown and clicks recorded on the New York Times home page in May 2012. Each row represents a single user. There are five columns: `Age`, `Gender` (0 = female, 1 = male), `Impressions`, `Clicks`, and `Signed_In`.
+
+The code chunk below imports these data as `nyt_csv_list`.
+
+```{r import-nyt_csv_list}
+nyt_csv_list <- readr::read_rds(path = "data/nyt_csv_list.rds")
+str(nyt_csv_list)
+```
+
+We can see each `data.frame` in the list has the same five variables.
+
+```{r names-nyt1}
+names(nyt_csv_list$nyt1)
+```
+
+Map always returns a list,

@@ -1,0 +1,486 @@
+---
+title: "Iteration best practices"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 6
+    
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(tidyverse)
+library(devtools)
+# figs folder
+fs::dir_create("figs")
+# data folder
+fs::dir_create("data")
+# docs folder
+fs::dir_create("docs")
+# chunk options
+knitr::opts_chunk$set(
+  echo = TRUE, # show/hide all code
+  tidy = FALSE, # cleaner code printing
+  comment = "#> ", # better console printing
+  eval = TRUE, # turn this to FALSE stop code chunks from running
+  message = TRUE, # show messages
+  warning = FALSE, # show warnings
+  size = "small", # size of the text
+  fig.path = "figs/", # location of files
+  fig.height = 5.5, # height of figures
+  fig.width = 8 # width of figures
+)
+# knit options
+knitr::opts_knit$set(
+  width = 78,
+  progress = FALSE
+)
+# base options
+base::options(
+  tibble.print_max = 25,
+  tibble.width = 78,
+  max.print = 999999,
+  scipen = 100000000
+)
+
+# nyt1 <- read_csv("data/dds_ch2_nyt/nyt1.csv")
+# nyt1 <- nyt1 %>% dplyr::slice_sample(n = 100)
+# readr::write_csv(x = nyt1, path = "data/dds_ch2_nyt/nyt1.csv")
+# nyt2 <- read_csv("data/dds_ch2_nyt/nyt2.csv")
+# nyt2 <- nyt2 %>% dplyr::slice_sample(n = 75)
+# readr::write_csv(x = nyt2, path = "data/dds_ch2_nyt/nyt2.csv")
+# nyt3 <- read_csv("data/dds_ch2_nyt/nyt3.csv")
+# nyt3 <- nyt3 %>% dplyr::slice_sample(n = 85)
+# readr::write_csv(x = nyt3, path = "data/dds_ch2_nyt/nyt3.csv")
+# nyt4 <- read_csv("data/dds_ch2_nyt/nyt4.csv")
+# nyt4 <- nyt4 %>% dplyr::slice_sample(n = 85)
+# readr::write_csv(x = nyt4, path = "data/dds_ch2_nyt/nyt4.csv")
+# nyt5 <- read_csv("data/dds_ch2_nyt/nyt5.csv")
+# nyt5 <- nyt5 %>% dplyr::slice_sample(n = 50)
+# readr::write_csv(x = nyt5, path = "data/dds_ch2_nyt/nyt5.csv")
+# csv_files <- fs::dir_ls(path = "data/dds_ch2_nyt", glob = "*.csv")
+# nyt_csv_list <- purrr::map(.x = csv_files, .f = read_csv)
+# readr::write_rds(x = nyt_csv_list, path = "data/nyt_csv_list.rds")
+```
+
+# Motivation
+
+> `lapply`, `map`, `purrr` or good old for-loops. After trial and error I seem to be able to get my `for loops` to work, but I always wonder if there is a better way?
+
+There is nothing wrong with `lapply` and others per se, but `purrr` allows for cleaning code (easier to read), and can make many iteration activities easier because it requires less typing and runs a bit faster.
+
+Below are examples of using `purrr` to solve common iteration problems I've encountered. Not all of these might be useful to you, but I am hoping these provide enough information for you to have a basic understanding of `purrr` and why it's preferred to most `for loops`.
+
+## Subsetting lists
+
+It's important to remember how to access the elements in a list. These can be vectors, data.frames/tibbles, or other lists.
+
+Let's start by creating a list of `scores` of that are randomly selected from the `rnorm()` distribution. Each vector has a different length, so it wouldn't make sense to put these into a `data.frame`.
+
+```{r scores-list}
+scores <- list(
+  score_01 = round(rnorm(n = 8, mean = 7, sd = 2), 0),
+  score_02 = round(rnorm(n = 9, mean = 4, sd = 1), 0),
+  score_03 = round(rnorm(n = 10, mean = 6, sd = 2), 0),
+  score_04 = round(rnorm(n = 11, mean = 3, sd = 1), 0),
+  score_05 = round(rnorm(n = 10, mean = 8, sd = 2), 0),
+  score_06 = round(rnorm(n = 12, mean = 9, sd = 2), 0),
+  score_07 = round(rnorm(n = 7, mean = 2, sd = 2), 0),
+  score_08 = round(rnorm(n = 10, mean = 9, sd = 3), 0),
+  score_09 = round(rnorm(n = 5, mean = 3, sd = 2), 0),
+  score_10 = round(rnorm(n = 4, mean = 1, sd = 1), 0)
+)
+```
+
+If we want to get `score_05` from the `scores`, we have a few options. Single brackets return the list, dollar sign and double brackets return a vector.
+
+```{r subsetting-lists}
+str(scores[1])
+str(scores$score_01)
+str(scores[[1]])
+```
+
+Note that we can do this with named lists. If the list elements are unnamed, we can still use the double brackets to extract elements from a list.
+
+## Applying functions across the elements of a list
+
+Assume we'd like to get the median value for each score in `scores`. `purrr::map()` allows us to do this easily by simply providing the list (`.x`) and function (`.f`) arguments.
+
+
+```{r map-basics}
+map(.x = scores, .f = median)
+```
+
+`purrr::map()` always returns a list, but there are alternative functions, too.
+
+### Alternatives to map()
+
+We can use `purrr::map_dbl()` to see the results as a vector.
+
+```{r map_dbl-basics}
+map_dbl(.x = scores, .f = median)
+```
+
+
+To see the full list of `purrr::map()` functions, type `map_` into RStudio and they should populate using tab completion.
+
+## Mappers
+
+Mappers are anonymous functions with a one-sided formula.
+
+### Types of functions
+
+Below is a quick overview of two different types of functions.
+
+#### Classical functions
+
+Below we create a classical 'named' function called `my_fun()`, which gets the `sd` (standard deviation) and `round`s it.
+
+```{r classical-functions}
+my_fun <- function(x) {
+  round(sd(x))
+}
+# apply with map_dbl
+map_dbl(.x = scores, .f = my_fun)
+```
+
+#### Lambda functions
+
+And these are lambda 'unnamed' functions, where the function is created 'on the fly', and included inside the `map_` function.
+
+```{r lambda-function}
+map_dbl(.x = scores, .f = function(x) {
+  round(sd(x))
+  })
+```
+
+#### Mapping single parameters
+
+Mappers use the .x to refer to the parameter of the function. You can also use `.` or `..` to refer to `.x`.
+
+```{r mapping-to-parameters}
+map_dbl(scores, ~ round(sd(.x)))
+map_dbl(scores, ~ round(sd(.)))
+map_dbl(scores, ~ round(sd(..1)))
+```
+
+I suggest you stick with `.x` because its easy to get lost.
+
+#### Mapping multiple parameters
+
+If you want to refer to more than one parameter, you can refer to the second parameter as `.y`. We'll create another list called `more_scores`.
+
+```{r more_scores-list}
+more_scores <- list(
+  score_11 = round(rnorm(n = 8, mean = 10, sd = 3), 0),
+  score_12 = round(rnorm(n = 9, mean = 11, sd = 3), 0),
+  score_13 = round(rnorm(n = 10, mean = 12, sd = 5), 0),
+  score_14 = round(rnorm(n = 11, mean = 11, sd = 1), 0),
+  score_15 = round(rnorm(n = 10, mean = 11, sd = 2), 0),
+  score_16 = round(rnorm(n = 12, mean = 10, sd = 1), 0),
+  score_17 = round(rnorm(n = 7, mean = 15, sd = 3), 0),
+  score_18 = round(rnorm(n = 10, mean = 11, sd = 2), 0),
+  score_19 = round(rnorm(n = 5, mean = 15, sd = 3), 0),
+  score_20 = round(rnorm(n = 4, mean = 13, sd = 4), 0)
+)
+more_scores
+```
+
+Below we combine `scores` and `more_scores` with `.x` and `.y`
+
+```{r two-parameters}
+map2(scores, more_scores, ~ .x + .y)
+```
+
+If there are more than two parameters, we can use `pmap` and combine the lists with `list`
+
+```{r even_more_scores-list}
+even_more_scores <- list(
+  score_21 = round(rnorm(n = 8, mean = 21, sd = 10), 0),
+  score_22 = round(rnorm(n = 9, mean = 20, sd = 12), 0),
+  score_23 = round(rnorm(n = 10, mean = 23, sd = 11), 0),
+  score_24 = round(rnorm(n = 11, mean = 22, sd = 13), 0),
+  score_25 = round(rnorm(n = 10, mean = 21, sd = 10), 0),
+  score_26 = round(rnorm(n = 12, mean = 25, sd = 12), 0),
+  score_27 = round(rnorm(n = 7, mean = 22, sd = 14), 0),
+  score_28 = round(rnorm(n = 10, mean = 20, sd = 12), 0),
+  score_29 = round(rnorm(n = 5, mean = 24, sd = 15), 0),
+  score_30 = round(rnorm(n = 4, mean = 20, sd = 10), 0)
+)
+even_more_scores
+```
+
+```{r pmap}
+pmap(.l = list(scores, more_scores, even_more_scores), ~ ..1 + ..2 + ..3)
+```
+
+### Creating mapper functions
+
+To create a mapper function, we can use `purrr::as_mapper()` function.
+
+```{r my_fun_mapper}
+my_fun_mapper <- as_mapper(~ round(sd(.x)))
+```
+
+These are easier to use, more concise, and should be used whenever you catch yourself copying and pasting functions.
+
+```{r use-my-fun-mapper}
+map_dbl(scores, my_fun_mapper)
+```
+
+## Setting names
+
+`purrr` has a great function for setting names called `set_names()`. It works by attaching names to the elements of a list.  
+
+```{r weekday_abbr}
+weekday_abbr <- c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")
+days <- c(1, 2, 3, 4, 5, 6, 7)
+purrr::set_names(days, weekday_abbr)
+```
+
+If we have multiple elements, we can combine them in a `list` and apply the names.
+
+```{r days2-days3}
+days2 <- c(1, 2, 3, 4, 5, 6, 7)
+days3 <- c(1, 2, 3, 4, 5, 6, 7)
+all_days <- list(days, days2, days3)
+map(all_days, ~set_names(.x, weekday_abbr))
+```
+
+### The `keep()` function
+
+`purrr::keep()` retains elements that satisfy conditions in a list. What if we want to keep only the `scores` that are less than `20`?
+
+```{r keep}
+purrr::keep(scores, ~ sum(.x) < 20)
+```
+
+We can also create a `mapper` with the condition and apply it to `scores`.
+
+```{r cut_off-mapper}
+cut_off <- as_mapper(~ sum(.x) < 20)
+keep(scores, cut_off)
+```
+
+### The `discard` function
+
+The counterpart to `keep` is `discard`, and it's used to drop the elements of a list that satisfy a condition. Below we use it to remove the `scores` who aren't less than `20`.
+
+```{r discard}
+discard(.x = scores, .p = cut_off)
+```
+
+Below is a list of all-time home run hitters in the MLB according to [baseball-reference.com](https://www.baseball-reference.com/leaders/HR_career.shtml).
+
+```{r sluggers}
+sluggers <- list(rank = factor(x = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+                               labels = c("first", "second", "third", "fourth",
+                               "fifth", "sixth", "seventh", "eighth", "ninth",
+                               "tenth"), ordered = TRUE),
+                 player = c("Barry Bonds", "Hank Aaron", "Babe Ruth",
+                            "Alex Rodriguez", "Willie Mays", "Albert Pujols",  
+                            "Ken Griffey Jr.", "Jim Thome", "Sammy Sosa",
+                            "Frank Robinson"),
+                 home_runs = c(762L, 755L, 714L, 696L, 660L, 659L, 630L, 612L,  
+                               609L, 586L),
+                 bats = c("L", "R", "L", "R", "R", "R", "L", "L", "R", "R"))
+str(sluggers)
+```
+
+### Predicate functions with `keep` and `discard`
+
+If we wanted to keep the vectors in `sluggers` are `factors`, we can use `keep` and `is.factor`
+
+```{r keep-predicates}
+keep(sluggers, is.factor)
+```
+
+If we wanted to discard all the numeric vectors in `sluggers`, we can use `discard` and `is.numeric`.
+
+```{r discard-predicates}
+discard(sluggers, is.numeric)
+```
+
+### Predicate functions with `every()` and `some()`
+
+If we wanted to check and if all of the elements in `sluggers` are character variables, we can use `every()`
+
+```{r every}
+every(.x = sluggers, is.character)
+```
+
+And if we wanted to check and see if at least one element in `sluggers` is numeric, we can combine `is.numeric` with `some()`
+
+```{r some}
+some(.x = sluggers, is.numeric)
+```
+
+These come in handy when we have larger lists with more objects and we're evaluating what they contain.
+
+## More complicated lists
+
+Next we'll be using some twitter data from the `fivethirtyeight` and `fivethirtyeightdata` packages. These contain the data used for articles from [FiveThirtyEight](https://fivethirtyeight.com/). 
+
+The code chunk below load the two twitter datasets and combines them in a list `twitter_538`
+
+```{r twitter_538}
+trump_twitter <- fivethirtyeight::trump_twitter
+twitter_presidents <- fivethirtyeightdata::twitter_presidents
+twitter_538 <- list(trump_twitter = trump_twitter,
+                    twitter_presidents = twitter_presidents)
+```
+
+### Viewing lists with `listviewer`
+
+Lists are a common object when using `purrr` because they can contain multiple object types. The `jsonedit` function from `listviewer` is great for viewing lists,
+
+```{r jsonedit}
+library(listviewer)
+listviewer::jsonedit(twitter_538)
+```
+
+These two datasets contain various forms of twitter data:
+
+- `trump_twitter`: A data frame with 448 rows representing tweets and 3 variables from ["The World's Favorite Donald Trump Tweets"](https://fivethirtyeight.com/features/the-worlds-favorite-donald-trump-tweets/)
+
+- `twitter_presidents`:  A data frame with 6439 rows describing individual tweets and 8 variables from ["The Worst Tweeter in Politics Isn't Trump"](https://fivethirtyeight.com/features/the-worst-tweeter-in-politics-isnt-trump/)
+
+We're going to use these to explore other iteration problems that `purrr` can handle.
+
+### Evaluating `twitter_538` contents with `every()` and `some()`
+
+Just like above, we'll use the `some()` to see if any of the elements in the `data.frame`s are dates with `is.POSIXct`. 
+
+```{r map-keep-is.character}
+map(twitter_538, ~ some(.x, lubridate::is.POSIXct))
+```
+
+We can see both `some()` is checked against both datasets in `twitter_538`. 
+
+### Twitter MLB data
+
+We'll collect some Twitter baseball data from the `rtweet` package to demonstrate how this might work with a data frame you've collected from Twitter. The code chunk below collects data from the `"NHL"` hashtag, 
+
+```{r import-sports_tweets-param, echo=FALSE}
+# this is here in case you've used up your API key and the code chunk below 
+# won't run
+sports_tweets <- readr::read_rds("data/2020-08-17/sports_tweets.rds")
+nhl_tweets <- sports_tweets$nhl_tweets
+mlb_tweets <- sports_tweets$mlb_tweets
+```
+
+```{r rtweet-mlb-data, eval=FALSE}
+library(rtweet)
+## search for 18000 tweets using the mlb hashtag
+nhl_tweets <- rtweet::search_tweets(q = "NHL", n = 1000, include_rts = FALSE)
+mlb_tweets <- rtweet::search_tweets(q = "MLB", n = 1000, include_rts = FALSE)
+```
+
+We'll put both data sets in a list called, `sports_tweets`.
+
+```{r sports_tweets}
+sports_tweets <- list(nhl_tweets, mlb_tweets) %>% 
+  set_names(nm = c("nhl_tweets", "mlb_tweets"))
+```
+
+Let's assume we want to save this in a time-stamped folder in case we need to use it later. Let's store these items in a list, and then go about exporting them as `.rds` files.
+
+```{r export-sports_tweets}
+# create a time-stamped folder path
+fs::dir_create(paste0("data/", base::noquote(lubridate::today()), "/"))
+
+output_rds <- function(files, names){ 
+  # create identical folder path
+    folder_path <- paste0("data/", base::noquote(lubridate::today()), "/")
+    # export each item in list with folder path + names + extension
+    readr::write_rds(data, paste0(folder_path, names, ".rds"))
+}
+
+purrr::quietly(purrr::pmap(.l = list(files = sports_tweets,
+                      names = names(sports_tweets)), .f = output_rds))
+```
+
+Now we'll check the contents of the data folder, we'll see these have been exported into separate data files. 
+
+```{r check-twitter-export}
+fs::dir_tree("data")
+```
+
+## Dealing with list columns
+
+Now let's keep the columns in `mlb_tweets` that are lists and look at it with `listviewer`
+
+```{r mlb_list_cols}
+mlb_list_cols <- keep(mlb_tweets, is.list)
+listviewer::jsonedit(mlb_list_cols)
+```
+
+It looks like 17 of these columns are lists, but these are hard to view and manipulate in this format. 
+
+## Working with list columns
+
+This section is directly from [Jenny Bryan's `purrr` tutorial](https://jennybc.github.io/purrr-tutorial/index.html), 
+
+> To work comfortably with list-columns, you need to develop techniques to:  
+> **Inspect.** What have I created?   
+> **Index.** How do I pull out specific bits by name or position?   
+> **Compute.** How do I operate on my list-column to make another vector or list-column?   
+> **Simplify.** How do I get rid of this list-column and back to a normal data frame?
+
+Let's assume we're only interested in tweets from the `Twitter for Android` and `Twitter for iPhone` sources, and only interested in tweets related to Oakland gambling. 
+
+We'll use two functions from `stringr` to get some tweets from the two sources that have text of interest to us. 
+
+```{r oakland_tweets}
+# define regular expression patterns
+tweets_regexp <- "Athletics|Oakland|#GamblingTwitter"
+source_regexp <- "Twitter for Android|Twitter for iPhone"
+
+oakland_tweets <- mlb_tweets %>%
+  # create new versions of source and text (twords)
+  mutate(source = str_extract(source, source_regexp),
+         twords = str_extract_all(text, tweets_regexp)) %>% 
+  # grab only four cols
+  dplyr::select(source, 
+                text,
+                created_at, 
+                twords) %>% 
+  # remove the missing sources
+  filter(!is.na(source))
+
+listviewer::jsonedit(oakland_tweets)
+```
+
+Ok, now we have a smaller `data.frame` of tweets about the Oakland A's. Next we'll add a variable for the hour, and the `start` of each word.
+
+```{r n-created_at-start}
+oakland_tweets <- oakland_tweets %>%
+  mutate(created_at = lubridate::as_datetime(created_at),
+         hour = lubridate::hour(created_at),
+         start = gregexpr(tweets_regexp, twords))
+```
+
+Let’s isolate tweets created after 1pm in which there’s an `tword` that starts within the first 10 characters.
+
+```{r isolate-tweets}
+oakland_tweets %>%
+  filter(hour > 13, # after 1:00pm
+         between(map_int(start, min), 0, 10)) # within the first 10 chars
+```
+
+We will add to this filter and find the tweets that contain `Oakland` with `map_lgl()` and `all`.
+
+```{r}
+oakland_tweets %>%
+  filter(hour > 13, # after 1:00pm
+         between(map_int(start, min), 0, 10), # within the first 10 chars
+         map_lgl(twords, ~ all(c("Oakland") %in% .x))) %>%  
+  unnest_auto(twords) %>% 
+  unnest_auto(start)
+```
+
+We can see a new row has been create for each new `tword`. 
+
